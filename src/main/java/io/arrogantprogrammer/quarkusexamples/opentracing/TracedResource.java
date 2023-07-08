@@ -1,8 +1,15 @@
 package io.arrogantprogrammer.quarkusexamples.opentracing;
 
+import io.opentelemetry.context.Context;
+import io.smallrye.reactive.messaging.TracingMetadata;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.reactive.messaging.Message;
+import org.eclipse.microprofile.reactive.messaging.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +20,10 @@ import java.util.stream.Collectors;
 public class TracedResource {
 
     static final Logger LOGGER = LoggerFactory.getLogger(TracedResource.class);
+
+    @Inject
+    @Channel("names")
+    Emitter<String> nameEmitter;
 
     @GET
     @Produces(MediaType.TEXT_PLAIN)
@@ -42,6 +53,18 @@ public class TracedResource {
         return Name.listAll().stream().map(name -> {
             return name.toString();
         }).collect(Collectors.toList());
+    }
+
+    @GET
+    @Path("/kafka/{name}")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String kakfaName(@PathParam("name") String name) {
+        Name nameToSend = new Name();
+        nameToSend.value = name;
+        TracingMetadata tm = TracingMetadata.withPrevious(Context.current());
+        Message out = Message.of(nameToSend.toString()).withMetadata(Metadata.of(tm));
+        nameEmitter.send(out);
+        return nameToSend.toString();
     }
 
 }
